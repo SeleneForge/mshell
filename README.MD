@@ -14,6 +14,7 @@ MoonShell is a native Windows shell with a Linux aesthetic (larp). It's fully na
 - **Typo suggestions** — mistype a command and MoonShell will point you at the closest real one (`la` → "Did you mean \"ls\"?").
 - **Interactive `help` menu** — built-in commands are grouped by category in a simple numbered menu, similar to a phone's call menu.
 - **Runs anything on your PATH** — if a command isn't built in, MoonShell looks for it on PATH the same way `cmd.exe` would (`.exe`, `.com`, `.bat`, `.cmd`, respecting `PATHEXT`) and runs it — so `code .`, `git status`, `python`, etc. all work normally.
+- **Pipelines and redirection** — chain commands with `|`, and send output to a file with `>` (overwrite) or `>>` (append), or read a file in as input with `<`. Works for built-in commands too, not just external programs, so `ls | findstr foo` or `ls > files.txt` work the same way `cmd1 | cmd2 > out.txt` would.
 
 ## Built-in commands
 
@@ -42,6 +43,38 @@ MoonShell is a native Windows shell with a Linux aesthetic (larp). It's fully na
 | `pcd` | Print the current/working directory |
 
 Anything else is looked up on PATH before MoonShell gives up on it.
+
+## Pipelines and redirection
+
+```
+$MShell C:\Users\you\projects> ls | findstr moon
+$MShell C:\Users\you\projects> git log > log.txt
+$MShell C:\Users\you\projects> git log >> log.txt
+$MShell C:\Users\you\projects> sort < names.txt
+$MShell C:\Users\you\projects> ls | findstr .c | findstr /v test > sources.txt
+```
+
+- `|` chains any number of commands, built-in or external, in any combination.
+- `>` writes a command's output to a file, overwriting it; `>>` appends instead.
+- `<` reads a file in as a command's input.
+- Operators don't need spaces around them (`ls>out.txt` works exactly like `ls > out.txt`) — put them in quotes if you actually want one of these characters as a literal argument instead (`echo "a|b"`).
+- Only stdout is redirected right now — there's no `2>` for stderr yet, and a small handful of commands that talk to the console directly rather than through stdout (`help`'s interactive menu, in particular) will still expect a real console no matter what you redirect.
+
+## Chaining commands
+
+```
+$MShell C:\Users\you\projects> mkdir build && cd build && cmake ..
+$MShell C:\Users\you\projects> git pull || echo "pull failed, staying on old code"
+$MShell C:\Users\you\projects> cd build ; ls
+```
+
+- `&&` runs the next command only if the previous one succeeded.
+- `||` runs the next command only if the previous one failed.
+- `;` runs the next command regardless of what the previous one did.
+- These combine with pipes and redirection normally, and follow the same precedence real shells use: `|` binds tighter than `&&`/`||`/`;`, so `a | b && c` means "run the pipeline `a | b`, then run `c` if that pipeline succeeded" — not "run `a`, piped into `(b && c)`".
+- A pipeline's success/failure is based on its *last* command, same as bash's default (`false | true` counts as success).
+- Built-in commands participate too — `cd somewhere && ls` only lists the directory if `cd` actually got there.
+- Background jobs (a trailing `&`) aren't supported — MoonShell reports it as a syntax error rather than silently ignoring it or hanging.
 
 ## Keyboard shortcuts
 
@@ -94,10 +127,6 @@ Pick a category:
 
 help>
 ```
-
-## Roadmap
-
-- [ ] Pipelines and redirection (`|`, `>`, `>>`, `<`)
 
 ## License
 

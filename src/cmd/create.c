@@ -2,10 +2,10 @@
 
 #include "command.h"
 
-void cmd_blank(int argc, char *argv[]) {
+int cmd_blank(int argc, char *argv[]) {
     if (argc < 2) {
         printf("blank: usage [blank <filename>].\n");
-        return;
+        return 1;
     }
 
     HANDLE hFile = CreateFileA(
@@ -25,17 +25,18 @@ void cmd_blank(int argc, char *argv[]) {
         } else {
             printf("blank: '%s' cannot be create!.\n", argv[1]);
         }
-        return;
+        return 1;
     }
 
     CloseHandle(hFile);
+    return 0;
 }
 
 // make directory
-void cmd_mkdir(int argc, char *argv[]) {
+int cmd_mkdir(int argc, char *argv[]) {
     if (argc < 2) {
         printf("mkdir: usage [mkdir <foldername>].\n");
-        return;
+        return 1;
     }
 
     if (!CreateDirectoryA(argv[1], NULL)) {
@@ -47,6 +48,7 @@ void cmd_mkdir(int argc, char *argv[]) {
         } else {
             printf("mkdir: '%s' cannot be create!.\n", argv[1]);
         }
-        return;
+        return 1;
     }
+    return 0;
 }

@@ -58,10 +58,10 @@ static int copyDirRecursive(const char *srcDir, const char *destDir) {
     return ok;
 }
 
-void cmd_cp(int argc, char *argv[]) {
+int cmd_cp(int argc, char *argv[]) {
     if (argc < 3) {
         printf("cp: usage [cp <source> <destination>]\n");
-        return;
+        return 1;
     }
 
     char *src = argv[1];
@@ -71,7 +71,7 @@ void cmd_cp(int argc, char *argv[]) {
     DWORD srcAttr = GetFileAttributesA(src);
     if (srcAttr == INVALID_FILE_ATTRIBUTES) {
         printf("cp: '%s' not found\n", src);
-        return;
+        return 1;
     }
 
     DWORD destAttr = GetFileAttributesA(dest);
@@ -84,10 +84,11 @@ void cmd_cp(int argc, char *argv[]) {
             dest = destBuf;
         }
 
-        if (copyDirRecursive(src, dest)) {
+        int ok = copyDirRecursive(src, dest);
+        if (ok) {
             printf("'%s' copied to '%s'\n", src, dest);
         }
-        return;
+        return ok ? 0 : 1;
     }
 
     // copying a single file — existing behavior
@@ -105,6 +106,7 @@ void cmd_cp(int argc, char *argv[]) {
         } else {
             printf("cp: cannot copy '%s' to '%s'\n", src, dest);
         }
-        return;
+        return 1;
     }
+    return 0;
 }

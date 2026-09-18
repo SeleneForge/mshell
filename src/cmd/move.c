@@ -12,10 +12,10 @@ static const char *basename_of(const char *path) {
     return lastSlash ? lastSlash + 1 : path;
 }
 
-void cmd_mv(int argc, char *argv[]) {
+int cmd_mv(int argc, char *argv[]) {
     if (argc < 3) {
         printf("mv: usage [mv <source> <destination>]\n");
-        return;
+        return 1;
     }
 
     char *src = argv[1];
@@ -41,6 +41,7 @@ void cmd_mv(int argc, char *argv[]) {
         } else {
             printf("mv: cannot move '%s' to '%s'\n", src, dest);
         }
-        return;
+        return 1;
     }
+    return 0;
 }

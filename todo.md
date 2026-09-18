@@ -1,3 +1,11 @@
+## To do list (8) DONE
+
+1. Make command chaining (`&&`, `||`, `;`) work - required giving built-in commands real exit statuses instead of always "succeeding", so `cd foo && ls` actually means something.
+
+## To do list (7) DONE
+
+1. Make pipes and redirection (`|`, `<`, `>`, `>>`) - works for built-in commands too, not just external ones.
+
 ## To do list (6) DONE
 
 1. Make a interactive help command. which sort every command by category (help)

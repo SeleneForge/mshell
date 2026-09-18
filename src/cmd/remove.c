@@ -2,10 +2,10 @@
 
 #include "command.h"
 
-void cmd_rm(int argc, char *argv[]) {
+int cmd_rm(int argc, char *argv[]) {
     if (argc < 2) {
         printf("rm: usage [rm <filename>].\n");
-        return;
+        return 1;
     }
 
     if (!DeleteFileA(argv[1])) {
@@ -18,15 +18,16 @@ void cmd_rm(int argc, char *argv[]) {
         } else {
             printf("rm: '%s' cannot be removed!.\n", argv[1]);
         }
-        return;
+        return 1;
     }
+    return 0;
 }
 
 // remove directory
-void cmd_rmdir(int argc, char *argv[]) {
+int cmd_rmdir(int argc, char *argv[]) {
     if (argc < 2) {
         printf("rmdir: usage [rmdir <foldername>].\n");
-        return;
+        return 1;
     }
 
     if (!RemoveDirectoryA(argv[1])) {
@@ -38,6 +39,7 @@ void cmd_rmdir(int argc, char *argv[]) {
         } else {
             printf("rmdir: '%s' cannot be removed!.\n", argv[1]);
         }
-        return;
+        return 1;
     }
+    return 0;
 }

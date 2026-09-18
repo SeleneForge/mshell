@@ -1,12 +1,13 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "command.h"
+#include <io.h>
 
 typedef struct {
     char name[MAX_PATH];
     int isDir;
 } Entry;
 
-void cmd_ls(int argc, char *argv[]) {
+int cmd_ls(int argc, char *argv[]) {
     char searchPath[MAX_PATH];
     if (argc < 2) {
         snprintf(searchPath, sizeof(searchPath), "*");
@@ -19,7 +20,7 @@ void cmd_ls(int argc, char *argv[]) {
 
     if (hFind == INVALID_HANDLE_VALUE) {
         printf("ls: cannot access '%s'\n", argc < 2 ? "." : argv[1]);
-        return;
+        return 1;
     }
 
     static Entry entries[MAX_ENTRIES];
@@ -54,9 +55,15 @@ void cmd_ls(int argc, char *argv[]) {
     int maxCols = termWidth / colWidth;
     if (maxCols < 1) maxCols = 1;
 
+    // Only colorize directories when stdout is an actual console - if
+    // it's been redirected to a file or piped into another command
+    // (`ls > out.txt`, `ls | findstr foo`), _isatty() comes back false
+    // and out.txt/findstr get plain text instead of raw ANSI escapes.
+    int colorize = _isatty(_fileno(stdout));
+
     int col = 0;
     for (int i = 0; i < count; i++) {
-        if (entries[i].isDir) {
+        if (entries[i].isDir && colorize) {
             printf("\x1b[1;34m%-*s\x1b[0m", colWidth, entries[i].name);
         } else {
             printf("%-*s", colWidth, entries[i].name);
@@ -69,4 +76,5 @@ void cmd_ls(int argc, char *argv[]) {
         }
     }
     if (col != 0) printf("\n");
+    return 0;
 }

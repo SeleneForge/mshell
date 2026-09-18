@@ -9,6 +9,8 @@
 #include "history.h"
 #include "suggest.h"
 #include "exec.h"
+#include "chain.h"
+#include "mshell.h"
 #include "cmd/command.h"
 
 // Ctrl+<letter> arrives as AsciiChar already reduced to its control code
@@ -19,102 +21,128 @@
 
 int  isRunning = 1; // Flag to check shell running.
 
-void runcmd(char *input) {
+// Tries argv[0] as a built-in. Shared with pipeline.c so a pipeline stage
+// ("ls | findstr foo") dispatches through the exact same table as a
+// plain top-level command instead of keeping a second copy of this list
+// that could quietly drift out of sync with this one. Returns -1 if
+// argv[0] isn't a built-in at all; otherwise runs it and returns its
+// exit status (0 = success) - see mshell.h.
+int runBuiltin(int argc, char *argv[]) {
+
+    // Basic
+
+    if (strcmp(argv[0], "echo") == 0) {
+
+        return cmd_echo(argc, argv);
+
+    } else if (strcmp(argv[0], "date") == 0) {
+
+        return cmd_date(argc, argv);
+
+    } else if (strcmp(argv[0], "exit") == 0) {
+
+        printf("Exit...\n");
+        isRunning = 0;
+        return 0;
+
+    } else if (strcmp(argv[0], "clear") == 0 || strcmp(argv[0], "clr") == 0) {
+
+        return cmd_clear(argc, argv);
+
+    } else if (strcmp(argv[0], "help") == 0) {
+
+        return cmd_help(argc, argv);
+
+    //File/dir Commands
+
+    } else if (strcmp(argv[0], "cd") == 0) {
+
+        return cmd_cd(argc, argv);
+
+    } else if (strcmp(argv[0], "ls") == 0) {
+
+        return cmd_ls(argc, argv);
+
+    } else if (strcmp(argv[0], "blank") == 0) {
+
+        return cmd_blank(argc, argv);
+
+    } else if (strcmp(argv[0], "mkdir") == 0) {
+
+        return cmd_mkdir(argc, argv);
+
+    } else if (strcmp(argv[0], "rmdir") == 0) {
+
+        return cmd_rmdir(argc, argv);
+
+    } else if (strcmp(argv[0], "rm") == 0) {
+
+        return cmd_rm(argc, argv);
+
+    } else if (strcmp(argv[0], "mv") == 0) {
+
+        return cmd_mv(argc, argv);
+
+    } else if (strcmp(argv[0], "cp") == 0) {
+
+        return cmd_cp(argc, argv);
+
+    } else if (strcmp(argv[0], "pcd") == 0) {
+
+        return cmd_pcd(argc, argv);
+
+    }
+
+    return -1; // not a built-in - caller should try PATH
+}
+
+void runcmd(char *input, size_t inputCap) {
 
     char original[1024];
     strncpy(original, input, sizeof(original) - 1);
     original[sizeof(original) - 1] = '\0';
 
     char *argv[MAX_ARGS];
-    int argc = tokenize(input, argv);
+    int argc = tokenize(input, inputCap, argv);
 
     if (argc == 0) {
         // empty input - do nothing
         return;
     }
 
-    // Basic
-
-    if (strcmp(argv[0], "echo") == 0) {
-
-        cmd_echo(argc, argv);
-        
-    } else if (strcmp(argv[0], "date") == 0) {
-        
-        cmd_date(argc, argv);
-        
-    } else if (strcmp(argv[0], "exit") == 0) {
-
-        printf("Exit...\n");
-        isRunning = 0;
-
-    } else if (strcmp(argv[0], "clear") == 0 || strcmp(argv[0], "clr") == 0) {
-
-        cmd_clear(argc, argv);
-
-    } else if (strcmp(argv[0], "help") == 0) {
-
-        cmd_help(argc, argv);
-
-    //File/dir Commands
-
-    } else if (strcmp(argv[0], "cd") == 0) {
-
-        cmd_cd(argc, argv);
-
-    } else if (strcmp(argv[0], "ls") == 0) {
-
-        cmd_ls(argc, argv);
-
-    } else if (strcmp(argv[0], "blank") == 0) {
-
-        cmd_blank(argc, argv);
-
-    } else if (strcmp(argv[0], "mkdir") == 0) {
-
-        cmd_mkdir(argc, argv);
-
-    } else if (strcmp(argv[0], "rmdir") == 0) {
-
-        cmd_rmdir(argc, argv);
-
-    } else if (strcmp(argv[0], "rm") == 0) {
-
-        cmd_rm(argc, argv);
-
-    } else if (strcmp(argv[0], "mv") == 0) {
-
-        cmd_mv(argc, argv);
-
-    } else if (strcmp(argv[0], "cp") == 0) {
-
-         cmd_cp(argc, argv);
-
-    } else if (strcmp(argv[0], "pcd") == 0) {
-
-        cmd_pcd(argc, argv);
-
-    // if command not found.
-    } else {
-        char resolvedPath[MAX_PATH];
-        if (execFindOnPath(argv[0], resolvedPath, sizeof(resolvedPath))) {
-
-            execRun(resolvedPath, original);
-
-        } else {
-            printf("Unknown Command! : %s\n", argv[0]);
-            if (argc > 1) {
-                printf("  (parsed as command \"%s\" + %d argument%s - full line was: %s)\n",
-                       argv[0], argc - 1, (argc - 1 == 1) ? "" : "s", original);
-            }
-
-            char suggestion[SUGGEST_MAX_LEN + 1];
-            if (suggestCommand(argv[0], suggestion, sizeof(suggestion))) {
-                printf("  Did you mean \"%s\"?\n", suggestion);
-            }
+    if (chainHasOperators(argv, argc)) {
+        CommandChain chain;
+        char errMsg[128];
+        if (!chainParse(argv, argc, &chain, errMsg, sizeof(errMsg))) {
+            printf("mshell: %s\n", errMsg);
+            return;
         }
+        chainExecute(&chain);
+        return;
     }
 
+    if (runBuiltin(argc, argv) >= 0) {
+        return;
+    }
+
+    // if command not found.
+    char resolvedPath[MAX_PATH];
+    if (execFindOnPath(argv[0], resolvedPath, sizeof(resolvedPath))) {
+
+        execRun(resolvedPath, original);
+
+    } else {
+        printf("Unknown Command! : %s\n", argv[0]);
+        if (argc > 1) {
+            printf("  (parsed as command \"%s\" + %d argument%s - full line was: %s)\n",
+                   argv[0], argc - 1, (argc - 1 == 1) ? "" : "s", original);
+        }
+
+        char suggestion[SUGGEST_MAX_LEN + 1];
+        if (suggestCommand(argv[0], suggestion, sizeof(suggestion))) {
+            printf("  Did you mean \"%s\"?\n", suggestion);
+        }
+    }
 }
 
 void printPrompt(void) {
@@ -277,7 +305,7 @@ void runPrompt(void){
                                  // only has the first token left
             printf("\r\n"); // \r first: guarantee the new row starts at column 0
                              // even if the cursor had drifted off its expected spot
-            runcmd(input);
+            runcmd(input, sizeof(input));
 
             if (!isRunning) break;
 

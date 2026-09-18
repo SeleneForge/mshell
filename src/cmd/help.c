@@ -135,7 +135,7 @@ static void runHelpMenu(void) {
     }
 }
 
-void cmd_help(int argc, char *argv[]) {
+int cmd_help(int argc, char *argv[]) {
     if (argc > 1) {
         // Direct lookup: "help ls" skips the menu entirely.
         const CommandInfo *cmd = commandsFind(argv[1]);
@@ -143,9 +143,11 @@ void cmd_help(int argc, char *argv[]) {
             printf("%s - %s\n", cmd->name, cmd->description);
         } else {
             printf("No help found for \"%s\".\n", argv[1]);
+            return 1;
         }
-        return;
+        return 0;
     }
 
     runHelpMenu();
+    return 0;
 }
