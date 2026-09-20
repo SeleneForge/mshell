@@ -145,7 +145,12 @@ void runcmd(char *input, size_t inputCap) {
     }
 }
 
-void printPrompt(void) {
+// Prints the prompt and returns how many *visible* columns it took up
+// (the ANSI color-setting calls around it don't occupy any screen
+// space, so they're not counted) - redrawWholeLine needs this to know
+// where column 0 of the actual input text is, which shifts every time
+// the current directory (and therefore the prompt itself) changes.
+size_t printPrompt(void) {
     char cwd[MAX_PATH];
     GetCurrentDirectoryA(sizeof(cwd), cwd);
 
@@ -166,16 +171,86 @@ void printPrompt(void) {
     printf("> ");
 
     fflush(stdout);
+
+    return strlen("$MShell ") + strlen(cwd) + strlen("> ");
 }
 
+// Terminal width in columns, matching how ls.c measures it - falls back
+// to 80 if the console query fails (e.g. output has been redirected).
+static int getTermWidth(void) {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if (GetConsoleScreenBufferInfo(hOut, &csbi)) {
+        int w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        if (w > 0) return w;
+    }
+    return 80;
+}
+
+// How far the terminal cursor currently sits from column 0 of the very
+// first row of the prompt, measured in columns (so a value >= termWidth
+// means the cursor has wrapped onto a later row). redrawWholeLine keeps
+// this updated after every redraw; resetLineCursor() re-anchors it
+// whenever a brand new prompt line starts, since the prompt's own length
+// changes with the current directory.
+static size_t lineCursorOffset = 0;
+
+static void resetLineCursor(size_t promptLen) {
+    lineCursorOffset = promptLen;
+}
+
+// Repaints the prompt + the line being typed, and leaves the terminal
+// cursor at the position `cursor` (an index into `input`) corresponds
+// to. This has to be aware of line wrapping: once prompt+input is longer
+// than one terminal row, a plain "\r" + erase-this-row (the old
+// approach) only ever touches the row the cursor happens to be sitting
+// on, leaving every row above it untouched - each redraw after that
+// point ends up stacking a whole new copy of the prompt underneath the
+// stale old one instead of replacing it. Moving up to the true start of
+// the block before erasing (and erasing down to the end of the screen
+// rather than just one row) is what makes this safe regardless of how
+// many rows the text spans.
 static void redrawWholeLine(const char *input, size_t len, size_t cursor) {
-    printf("\r\x1b[2K"); // \x1b[2K = erase the ENTIRE line, not just cursor-to-end
-    printPrompt();
+    int termWidth = getTermWidth();
+    if (termWidth < 1) termWidth = 1;
+
+    size_t oldRow = lineCursorOffset / (size_t)termWidth;
+    if (oldRow > 0) {
+        printf("\x1b[%zuA", oldRow); // up to the block's first row
+    }
+    printf("\r");        // ...and to column 0 of it
+    printf("\x1b[0J");   // erase from here to the end of the screen -
+                          // covers every row the old content could have
+                          // wrapped across, not just the one row a plain
+                          // "erase this line" would touch
+
+    size_t promptLen = printPrompt(); // re-measure - cwd may have just changed (e.g. after "cd")
     if (len) printf("%.*s", (int)len, input); // print exactly len bytes - never
                                                // trust a NUL terminator to be in
                                                // the right place
-    if (cursor < len) printf("\x1b[%zuD", len - cursor);
+
+    // Printing just now left the cursor at the end of the new text; walk
+    // it back (up rows, then left/right) to where `cursor` says it
+    // should actually be - the same math as above, just inverted.
+    size_t endOffset = promptLen + len;
+    size_t targetOffset = promptLen + cursor;
+    size_t endRow = endOffset / (size_t)termWidth;
+    size_t endCol = endOffset % (size_t)termWidth;
+    size_t targetRow = targetOffset / (size_t)termWidth;
+    size_t targetCol = targetOffset % (size_t)termWidth;
+
+    if (endRow > targetRow) {
+        printf("\x1b[%zuA", endRow - targetRow);
+    }
+    if (targetCol < endCol) {
+        printf("\x1b[%zuD", endCol - targetCol);
+    } else if (targetCol > endCol) {
+        printf("\x1b[%zuC", targetCol - endCol);
+    }
+
     fflush(stdout);
+
+    lineCursorOffset = targetOffset;
 }
 
 void runPrompt(void){
@@ -189,7 +264,7 @@ void runPrompt(void){
     size_t len = 0;    // bytes currently in the buffer
     size_t cursor = 0; // where in the buffer the terminal cursor sits
 
-    printPrompt();
+    resetLineCursor(printPrompt());
 
     INPUT_RECORD ir;
     DWORD read;
@@ -312,7 +387,7 @@ void runPrompt(void){
             len = 0;
             cursor = 0;
             printf("\x1b[J");
-            printPrompt();
+            resetLineCursor(printPrompt());
 
         } else if ( c == '\b') {  //backspace
             if (cursor > 0){
