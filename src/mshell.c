@@ -175,28 +175,58 @@ size_t printPrompt(void) {
     return strlen("$MShell ") + strlen(cwd) + strlen("> ");
 }
 
-// Terminal width in columns, matching how ls.c measures it - falls back
-// to 80 if the console query fails (e.g. output has been redirected).
+// Terminal width in columns. Text actually wraps at the screen BUFFER's
+// width (dwSize.X) - the grid of cells characters get written into - not
+// at the visible WINDOW's width (srWindow), which only describes how
+// much of that grid happens to be scrolled into view right now. Falls
+// back to 80 if the query fails entirely (e.g. output redirected).
 static int getTermWidth(void) {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (GetConsoleScreenBufferInfo(hOut, &csbi)) {
-        int w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-        if (w > 0) return w;
+        if (csbi.dwSize.X > 0) return csbi.dwSize.X;
     }
     return 80;
 }
 
-// How far the terminal cursor currently sits from column 0 of the very
-// first row of the prompt, measured in columns (so a value >= termWidth
-// means the cursor has wrapped onto a later row). redrawWholeLine keeps
-// this updated after every redraw; resetLineCursor() re-anchors it
-// whenever a brand new prompt line starts, since the prompt's own length
-// changes with the current directory.
-static size_t lineCursorOffset = 0;
+// The row (relative to the prompt's own row: 0 = same row as the
+// prompt) the terminal cursor was actually left on after the last
+// redraw. Tracked directly as a row number rather than re-derived from
+// a character count each time, because of "deferred wrap": when
+// printing fills a row's very last column exactly, the terminal's
+// cursor does NOT advance to the next row right away - it stays
+// sitting at that last column until another character is actually
+// printed there. That means the same character count can correspond to
+// two different rows depending on whether anything gets printed right
+// after reaching that boundary, so a stored character count alone isn't
+// enough to reliably re-derive the correct row on the next call -
+// tracking the row itself sidesteps that ambiguity.
+static size_t lineCursorRow = 0;
 
-static void resetLineCursor(size_t promptLen) {
-    lineCursorOffset = promptLen;
+static void resetLineCursor(void) {
+    lineCursorRow = 0; // the prompt's own row, always
+}
+
+// Where `offset` characters (counted from the very start of the prompt
+// block) land the cursor, as a (row, col) relative to that block's
+// first row - honoring deferred wrap. `isEndOfPrint` must be true only
+// for the position where printing actually stops with nothing queued
+// to print right after it (that's the only place deferred wrap can ever
+// apply); every other position - an existing character that has more
+// content following it - uses plain division instead, since there's no
+// "did we stop here" ambiguity when something else gets printed right
+// after.
+static void offsetToRowCol(size_t offset, int width, int isEndOfPrint, size_t *outRow, size_t *outCol) {
+    if (offset == 0) {
+        *outRow = 0;
+        *outCol = 0;
+    } else if (isEndOfPrint && offset % (size_t)width == 0) {
+        *outRow = offset / (size_t)width - 1;
+        *outCol = (size_t)width - 1;
+    } else {
+        *outRow = offset / (size_t)width;
+        *outCol = offset % (size_t)width;
+    }
 }
 
 // Repaints the prompt + the line being typed, and leaves the terminal
@@ -214,9 +244,8 @@ static void redrawWholeLine(const char *input, size_t len, size_t cursor) {
     int termWidth = getTermWidth();
     if (termWidth < 1) termWidth = 1;
 
-    size_t oldRow = lineCursorOffset / (size_t)termWidth;
-    if (oldRow > 0) {
-        printf("\x1b[%zuA", oldRow); // up to the block's first row
+    if (lineCursorRow > 0) {
+        printf("\x1b[%zuA", lineCursorRow); // up to the block's first row
     }
     printf("\r");        // ...and to column 0 of it
     printf("\x1b[0J");   // erase from here to the end of the screen -
@@ -229,15 +258,16 @@ static void redrawWholeLine(const char *input, size_t len, size_t cursor) {
                                                // trust a NUL terminator to be in
                                                // the right place
 
-    // Printing just now left the cursor at the end of the new text; walk
-    // it back (up rows, then left/right) to where `cursor` says it
-    // should actually be - the same math as above, just inverted.
+    // Printing just now left the cursor wherever printing the full line
+    // stopped; walk it back (up rows, then left/right) to where `cursor`
+    // says it should actually be.
     size_t endOffset = promptLen + len;
+    size_t endRow, endCol;
+    offsetToRowCol(endOffset, termWidth, 1, &endRow, &endCol);
+
     size_t targetOffset = promptLen + cursor;
-    size_t endRow = endOffset / (size_t)termWidth;
-    size_t endCol = endOffset % (size_t)termWidth;
-    size_t targetRow = targetOffset / (size_t)termWidth;
-    size_t targetCol = targetOffset % (size_t)termWidth;
+    size_t targetRow, targetCol;
+    offsetToRowCol(targetOffset, termWidth, cursor == len, &targetRow, &targetCol);
 
     if (endRow > targetRow) {
         printf("\x1b[%zuA", endRow - targetRow);
@@ -250,8 +280,9 @@ static void redrawWholeLine(const char *input, size_t len, size_t cursor) {
 
     fflush(stdout);
 
-    lineCursorOffset = targetOffset;
+    lineCursorRow = targetRow;
 }
+
 
 void runPrompt(void){
     enableRawMode();
@@ -264,7 +295,8 @@ void runPrompt(void){
     size_t len = 0;    // bytes currently in the buffer
     size_t cursor = 0; // where in the buffer the terminal cursor sits
 
-    resetLineCursor(printPrompt());
+    printPrompt();
+    resetLineCursor();
 
     INPUT_RECORD ir;
     DWORD read;
@@ -387,7 +419,8 @@ void runPrompt(void){
             len = 0;
             cursor = 0;
             printf("\x1b[J");
-            resetLineCursor(printPrompt());
+            printPrompt();
+            resetLineCursor();
 
         } else if ( c == '\b') {  //backspace
             if (cursor > 0){
