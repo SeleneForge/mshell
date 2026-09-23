@@ -5,7 +5,7 @@
 
 #define MAJOR 0
 #define MINOR 2
-#define PATCH 4
+#define PATCH 5
 
 #define PrintVer() printf("Moon Shell v%d.%d.%d\nby Gazach\n\n", MAJOR, MINOR, PATCH)
 
