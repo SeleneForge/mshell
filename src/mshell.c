@@ -53,6 +53,10 @@ int runBuiltin(int argc, char *argv[]) {
 
         return cmd_help(argc, argv);
 
+    } else if (strcmp(argv[0], "which") == 0) {
+
+        return cmd_which(argc, argv);
+
     //File/dir Commands
 
     } else if (strcmp(argv[0], "cd") == 0) {
@@ -75,7 +79,7 @@ int runBuiltin(int argc, char *argv[]) {
 
         return cmd_rmdir(argc, argv);
 
-    } else if (strcmp(argv[0], "rm") == 0) {
+    } else if (strcmp(argv[0], "rm") == 0 || strcmp(argv[0], "del") == 0) {
 
         return cmd_rm(argc, argv);
 
@@ -83,13 +87,31 @@ int runBuiltin(int argc, char *argv[]) {
 
         return cmd_mv(argc, argv);
 
-    } else if (strcmp(argv[0], "cp") == 0) {
+    } else if (strcmp(argv[0], "cp") == 0 || strcmp(argv[0], "copy") == 0) {
 
         return cmd_cp(argc, argv);
 
     } else if (strcmp(argv[0], "pcd") == 0) {
 
         return cmd_pcd(argc, argv);
+
+    // Text commands
+
+    } else if (strcmp(argv[0], "cat") == 0) {
+
+        return cmd_cat(argc, argv);
+
+    } else if (strcmp(argv[0], "head") == 0) {
+
+        return cmd_head(argc, argv);
+
+    } else if (strcmp(argv[0], "tail") == 0) {
+
+        return cmd_tail(argc, argv);
+
+    } else if (strcmp(argv[0], "grep") == 0) {
+
+        return cmd_grep(argc, argv);
 
     }
 

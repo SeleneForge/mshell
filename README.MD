@@ -27,6 +27,7 @@ MoonShell is a native Windows shell with a Linux aesthetic (larp). It's fully na
 | `exit` | Quit the shell |
 | `clear` / `clr` | Clear the screen and scrollback |
 | `help` | Show the interactive help menu (or `help <command>` for a direct lookup) |
+| `which` | Show what a command name runs: `name: shell built-in command`, or the full path of the file on PATH it resolves to |
 
 ### File & Directory
 
@@ -34,13 +35,27 @@ MoonShell is a native Windows shell with a Linux aesthetic (larp). It's fully na
 | --- | --- |
 | `cd` | Change the current directory |
 | `ls` | List files and folders in the current directory |
-| `blank` | Create a new empty file |
+| `blank` | Create one or more new empty files (`blank a.txt b.txt c.txt`) |
 | `mkdir` | Create a new directory |
 | `rmdir` | Remove a directory |
-| `rm` | Remove a file |
+| `rm` / `del` | Remove a file |
 | `mv` | Move or rename a file |
-| `cp` | Copy a file |
+| `cp` / `copy` | Copy a file |
 | `pcd` | Print the current/working directory |
+
+### Text
+
+| Command | Description |
+| --- | --- |
+| `cat` | Print files (or piped input) to the screen; `-n` numbers the lines |
+| `head` | Show the first lines of a file: `-n <count>` (default 10), also `-<count>` |
+| `tail` | Show the last lines of a file: `-n <count>`, `-n +<line>` to start from a given line, `-f` to keep printing what gets added to a file (stop with `Ctrl+C` or `Esc`) |
+| `grep` | Search for lines matching a pattern: `-i -v -n -c -l -o -w -x -q -r -E -F -e -H -h --color` (`grep --help` lists them) |
+
+- All four take one or more files, or read piped/redirected input (`-` means "standard input"). They pass bytes through untouched, so `cat file > copy` gives you an identical file, line endings and all.
+- With several files, `head` and `tail` print a `==> name <==` header before each.
+- `grep` patterns are basic regex by default, like real grep (`\(`, `\|`, `\+` are the operators); `-E` switches to the extended flavour (`(`, `|`, `+`), `-F` treats the pattern as plain text. `\w \s \d \b \<` `\>` and `[[:alpha:]]`-style classes work, back-references (`\1`) don't. It exits `0` if anything matched, `1` if nothing did and `2` on an error, so `grep -q foo file && ...` works. `-r` skips symlinks and junctions.
+- Wildcards aren't expanded by the shell yet, so `cat *.txt` won't work - list the files, or use `grep -r`.
 
 Anything else is looked up on PATH before MoonShell gives up on it.
 
@@ -55,6 +70,7 @@ $MShell C:\Users\you\projects> ls | findstr .c | findstr /v test > sources.txt
 ```
 
 - `|` chains any number of commands, built-in or external, in any combination.
+- Built-ins run one at a time, so a built-in on the *left* of a `|` can only hand over about 64 KB before the next stage has started reading. Small pipes like `ls | grep foo` are fine, but `cat huge.log | grep error` will hang - give the file to the command directly instead (`grep error huge.log`). Likewise `tail -f` can't feed a pipe (use `>` or run it on its own).
 - `>` writes a command's output to a file, overwriting it; `>>` appends instead.
 - `<` reads a file in as a command's input.
 - Operators don't need spaces around them (`ls>out.txt` works exactly like `ls > out.txt`) — put them in quotes if you actually want one of these characters as a literal argument instead (`echo "a|b"`).

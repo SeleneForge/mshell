@@ -4,32 +4,37 @@
 
 int cmd_blank(int argc, char *argv[]) {
     if (argc < 2) {
-        printf("blank: usage [blank <filename>].\n");
+        printf("blank: usage [blank <filename>...].\n");
         return 1;
     }
 
-    HANDLE hFile = CreateFileA(
-        argv[1],
-        GENERIC_WRITE,
-        0,
-        NULL,
-        CREATE_NEW,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
+    // Try every name even if one of them fails, then report failure if any did.
+    int status = 0;
+    for (int i = 1; i < argc; i++) {
+        HANDLE hFile = CreateFileA(
+            argv[i],
+            GENERIC_WRITE,
+            0,
+            NULL,
+            CREATE_NEW,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL
+        );
 
-    if (hFile == INVALID_HANDLE_VALUE) {
-        DWORD err = GetLastError();
-        if (err == ERROR_FILE_EXISTS) {
-            printf("blank: '%s' already exist!.\n", argv[1]);
-        } else {
-            printf("blank: '%s' cannot be create!.\n", argv[1]);
+        if (hFile == INVALID_HANDLE_VALUE) {
+            DWORD err = GetLastError();
+            if (err == ERROR_FILE_EXISTS) {
+                printf("blank: '%s' already exist!.\n", argv[i]);
+            } else {
+                printf("blank: '%s' cannot be create!.\n", argv[i]);
+            }
+            status = 1;
+            continue;
         }
-        return 1;
-    }
 
-    CloseHandle(hFile);
-    return 0;
+        CloseHandle(hFile);
+    }
+    return status;
 }
 
 // make directory

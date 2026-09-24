@@ -8,6 +8,7 @@ const CommandInfo COMMAND_TABLE[] = {
     { "clear", "Basic", "Clear the screen and scrollback" },
     { "clr",   "Basic", "Alias for clear" },
     { "help",  "Basic", "Show this interactive help menu" },
+    { "which", "Basic", "Show what a command name runs: built-in or path" },
 
     { "cd",    "File & Directory", "Change the current directory" },
     { "ls",    "File & Directory", "List files and folders in the current directory" },
@@ -17,7 +18,14 @@ const CommandInfo COMMAND_TABLE[] = {
     { "rm",    "File & Directory", "Remove a file" },
     { "mv",    "File & Directory", "Move or rename a file" },
     { "cp",    "File & Directory", "Copy a file" },
+    { "copy",  "File & Directory", "Alias for cp" },
+    { "del",   "File & Directory", "Alias for rm" },
     { "pcd",   "File & Directory", "Print the current/working directory" },
+
+    { "cat",   "Text", "Print files (or piped input) to the screen" },
+    { "head",  "Text", "Show the first lines of a file (-n <count>)" },
+    { "tail",  "Text", "Show the last lines of a file (-n <count>, -f to follow)" },
+    { "grep",  "Text", "Search for lines matching a pattern (-i -n -r -v -c ...)" },
 };
 
 const size_t COMMAND_TABLE_COUNT = sizeof(COMMAND_TABLE) / sizeof(COMMAND_TABLE[0]);

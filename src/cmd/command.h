@@ -32,4 +32,12 @@ int cmd_pcd(int argc, char *argv[]);
 int cmd_mv(int argc, char *argv[]);
 int cmd_cp(int argc, char *argv[]);
 
+// Text and shell utilities. cat/head/tail/grep read a file or stdin and
+// pass bytes through untouched.
+int cmd_cat(int argc, char *argv[]);
+int cmd_head(int argc, char *argv[]);
+int cmd_tail(int argc, char *argv[]);
+int cmd_grep(int argc, char *argv[]);
+int cmd_which(int argc, char *argv[]);
+
 #endif // COMMAND_H
